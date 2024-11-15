@@ -94,7 +94,9 @@ button:focus-visible {
   height: 80vh;
 }
 
-#map, #cache-detail-panel, #inventory {
+#map,
+#cache-detail-panel,
+#inventory {
   padding: 15px;
   border: 1px solid #ccc;
   border-radius: 5px;

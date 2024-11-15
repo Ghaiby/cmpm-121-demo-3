@@ -146,9 +146,7 @@ const generateCacheLocations = (playerLocation: location): location[] => {
       const neighborCell: Cell = { i: playerCell.i + di, j: playerCell.j + dj };
 
       if (
-        luck([neighborCell.i, neighborCell.j].toString()) <
-        CACHE_SPAWN_PROBABILITY
-      ) {
+        luck([neighborCell.i, neighborCell.j].toString()) < CACHE_SPAWN_PROBABILITY) {
         const cacheLatLng = getLatLngFromCell(neighborCell);
         cacheLocations.push(cacheLatLng);
       }
@@ -170,11 +168,7 @@ function collectCoin(index: number, coinItem: HTMLElement) {
 }
 
 //Deposit coin into cache
-function depositCoin(
-  index: number,
-  inventoryItem: HTMLElement,
-  targetCoinList: HTMLElement
-) {
+function depositCoin(index: number, inventoryItem: HTMLElement, targetCoinList: HTMLElement) {
   inventoryItem.remove();
   inventory = inventory.filter((num) => num !== index);
 
@@ -254,11 +248,7 @@ const playerMoved = (event: CustomEvent, map: Map) => {
   });
 };
 
-function createCollectButton(
-  i: number,
-  coinList: HTMLElement,
-  coinItem: HTMLElement
-) {
+function createCollectButton(i: number, coinList: HTMLElement, coinItem: HTMLElement) {
   const collectButton = document.createElement("button");
   collectButton.textContent = "Collect";
   collectButton.id = `collectCoin${i}`;
