@@ -170,7 +170,7 @@ function collectCoin(index: number, coinItem: HTMLElement) {
 function depositCoin(
   index: number,
   inventoryItem: HTMLElement,
-  targetCoinList: HTMLElement
+  targetCoinList: HTMLElement,
 ) {
   inventoryItem.remove();
   inventory = inventory.filter((num) => num !== index);
@@ -254,7 +254,7 @@ const playerMoved = (event: CustomEvent, map: Map) => {
 function createCollectButton(
   i: number,
   coinList: HTMLElement,
-  coinItem: HTMLElement
+  coinItem: HTMLElement,
 ) {
   const collectButton = document.createElement("button");
   collectButton.textContent = "Collect";
