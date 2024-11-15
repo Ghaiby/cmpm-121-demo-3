@@ -277,5 +277,4 @@ document.addEventListener("playerMoved", (event) => {
   playerMoved(event as CustomEvent, map);
 });
 
-//Player moved event
 dispatchCacheGeneration(OAKES_CLASSROOM);
