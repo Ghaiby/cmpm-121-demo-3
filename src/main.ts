@@ -10,6 +10,8 @@ import "./leafletWorkaround.ts";
 
 import luck from "./luck.ts";
 
+import { Board, Cell } from "./board.ts";
+
 // define constants
 const GAMEPLAY_ZOOM_LEVEL = 19;
 const TILE_DEGREES = 1e-4;
@@ -54,7 +56,7 @@ const inventoryPanel = document.createElement("div");
 inventoryPanel.id = "inventory";
 const inventoryTitle = document.createElement("h2");
 inventoryTitle.textContent = "Inventory";
-const inventoryList = document.createElement("ul");
+const inventoryList = document.createElement("ol");
 
 inventoryPanel.appendChild(inventoryTitle);
 inventoryPanel.appendChild(inventoryList);
@@ -92,9 +94,9 @@ type location = {
   lng: number;
 };
 
-interface Cell {
-  i: number; // Row
-  j: number; // Column
+interface Coin {
+  cell: Cell;
+  serial: number;
 }
 
 // Map interface to hide leaflet
@@ -122,76 +124,68 @@ const map: Map = {
   },
 };
 
-// Map Math Functions
-const getCellFromLatLng = (lat: number, lng: number): Cell => {
-  const i = Math.floor(lat / TILE_DEGREES);
-  const j = Math.floor(lng / TILE_DEGREES);
-  return { i, j };
-};
-
-const getLatLngFromCell = (cell: Cell): location => {
-  const lat = cell.i * TILE_DEGREES;
-  const lng = cell.j * TILE_DEGREES;
-  return { lat, lng };
-};
+const board = new Board(TILE_DEGREES, NEIGHBORHOOD_SIZE);
 
 //Place a cache at about 10% of the grid cells that are within 8 cell-steps away
 const generateCacheLocations = (playerLocation: location): location[] => {
-  const playerCell = getCellFromLatLng(playerLocation.lat, playerLocation.lng);
+  const point = new leaflet.LatLng(playerLocation.lat, playerLocation.lng);
+  const nearbyCells = board.getCellsNearPoint(point);
 
   const cacheLocations: location[] = [];
 
-  for (let di = -NEIGHBORHOOD_SIZE; di <= NEIGHBORHOOD_SIZE; di++) {
-    for (let dj = -NEIGHBORHOOD_SIZE; dj <= NEIGHBORHOOD_SIZE; dj++) {
-      const neighborCell: Cell = { i: playerCell.i + di, j: playerCell.j + dj };
-      const cellID = [neighborCell.i, neighborCell.j].toString();
-      if (luck(cellID) < CACHE_SPAWN_PROBABILITY) {
-        const cacheLatLng = getLatLngFromCell(neighborCell);
-        cacheLocations.push(cacheLatLng);
-      }
+  nearbyCells.forEach((cell) => {
+    const cellKey = [cell.i, cell.j].toString();
+    if (luck(cellKey) < CACHE_SPAWN_PROBABILITY) {
+      const bounds = board.getCellBounds(cell);
+      const center = bounds.getCenter();
+      cacheLocations.push({ lat: center.lat, lng: center.lng });
     }
-  }
+  });
 
   return cacheLocations;
 };
 // Store coins as ints for now
-let inventory: number[] = [];
+const inventory: Coin[] = [];
 
 //Collect coin into inventory
-function collectCoin(index: number, coinItem: HTMLElement) {
-  inventory.push(index);
+function collectCoin(coinItem: HTMLElement, coin: Coin) {
+  inventory.push(coin);
   coinItem.setAttribute("collected", "true");
   const inventoryItem = document.createElement("li");
-  inventoryItem.textContent = `Coin ${index}`;
+  inventoryItem.textContent = `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
   inventoryList.appendChild(inventoryItem);
 }
 
 //Deposit coin into cache
 function depositCoin(
-  index: number,
+  coin: Coin,
   inventoryItem: HTMLElement,
   targetCoinList: HTMLElement,
 ) {
-  inventoryItem.remove();
-  inventory = inventory.filter((num) => num !== index);
-
   // Add the coin to the cache's coin list
   const coinItem = document.createElement("li");
-  coinItem.textContent = `Coin ${index} `;
+  coinItem.textContent = `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
   targetCoinList.appendChild(coinItem);
-  createCollectButton(index, targetCoinList, coinItem);
+  createCollectButton(coin, targetCoinList, coinItem);
+
+  inventoryItem.remove();
+  const RemoveIndex = inventory.indexOf(coin, 0);
+  if (RemoveIndex > -1) {
+    inventory.splice(RemoveIndex, 1);
+  }
 }
 
 //Add the deposit buttons when a cache is clicked
 function showDepositButtons(targetCoinList: HTMLElement) {
-  const inventoryItems = document.querySelectorAll("#inventory ul li");
+  const inventoryItems = document.querySelectorAll("#inventory ol li");
   inventoryItems.forEach((item, index) => {
     if (!item.querySelector(".deposit-button")) {
       const depositButton = document.createElement("button");
       depositButton.textContent = "Deposit";
       depositButton.classList.add("deposit-button");
+      const coin = inventory[index];
       depositButton.onclick = () =>
-        depositCoin(index, item as HTMLElement, targetCoinList);
+        depositCoin(coin, item as HTMLElement, targetCoinList);
       item.appendChild(depositButton);
     }
   });
@@ -219,15 +213,17 @@ const playerMoved = (event: CustomEvent, map: Map) => {
     title.textContent = "Cache Location";
     popupContainer.appendChild(title);
 
-    const coinList = document.createElement("ul");
+    const coinList = document.createElement("ol");
     const coinsAvailable = Math.floor(Math.random() * 10) + 1;
 
-    // Display coins list
     for (let i = 0; i < coinsAvailable; i++) {
-      const coinItem = document.createElement("li");
-      coinItem.textContent = `Coin ${i} `;
+      const cell = board.getCellForPoint(location);
+      const coin = { cell, serial: i };
 
-      createCollectButton(i, coinList, coinItem);
+      const coinItem = document.createElement("li");
+      coinItem.textContent = `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
+
+      createCollectButton(coin, coinList, coinItem);
 
       coinList.appendChild(coinItem);
     }
@@ -252,15 +248,14 @@ const playerMoved = (event: CustomEvent, map: Map) => {
 };
 
 function createCollectButton(
-  i: number,
+  coin: Coin,
   coinList: HTMLElement,
   coinItem: HTMLElement,
 ) {
   const collectButton = document.createElement("button");
   collectButton.textContent = "Collect";
-  collectButton.id = `collectCoin${i}`;
   collectButton.onclick = () => {
-    collectCoin(i, coinItem), showDepositButtons(coinList);
+    collectCoin(coinItem, coin), showDepositButtons(coinList);
     collectButton.disabled = true;
   };
   coinItem.appendChild(collectButton);

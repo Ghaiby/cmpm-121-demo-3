@@ -102,11 +102,6 @@ button:focus-visible {
   border-radius: 5px;
 }
 
-#inventory-list {
+ol{
   list-style: none;
-  padding: 0;
-}
-
-#inventory-list li {
-  margin-bottom: 5px;
 }
