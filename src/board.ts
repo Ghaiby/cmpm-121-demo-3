@@ -38,11 +38,11 @@ export class Board {
 
     const southWest = new leaflet.LatLng(
       i * this.tileWidth,
-      j * this.tileWidth
+      j * this.tileWidth,
     );
     const northEast = new leaflet.LatLng(
       (i + 1) * this.tileWidth,
-      (j + 1) * this.tileWidth
+      (j + 1) * this.tileWidth,
     );
 
     return new leaflet.LatLngBounds(southWest, northEast);
