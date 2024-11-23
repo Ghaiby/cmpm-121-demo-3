@@ -164,7 +164,7 @@ function createGeocache(cell: Cell): Geocache {
           coinString.slice(
             coinString.indexOf(":") + 1,
             coinString.indexOf("#"),
-                ),
+              ),
         );
         const s: number = parseInt(
           coinString.slice(coinString.indexOf("#") + 1),
