@@ -158,14 +158,17 @@ function createGeocache(cell: Cell): Geocache {
     fromMomento(momento: string) {
       momento.split(",").forEach((coinString) => {
         const i: number = parseInt(
-          coinString.slice(0, coinString.indexOf(":"))
+          coinString.slice(0, coinString.indexOf(":")),
         );
         const j: number = parseInt(
-          coinString.slice(coinString.indexOf(":") + 1, coinString.indexOf("#"))
+          coinString.slice(
+            coinString.indexOf(":") + 1,
+            coinString.indexOf("#"),
+                )
         );
         const s: number = parseInt(
           coinString.slice(coinString.indexOf("#") + 1),
-          coinString.indexOf("X")
+          coinString.indexOf("X"),
         );
         let isCollected = false;
         if (coinString.slice(coinString.indexOf("X") + 1) === "1") {
@@ -284,7 +287,7 @@ function movePlayer(direction: "up" | "down" | "left" | "right") {
   }
   map.UI.setView(
     [currentLocation.lat, currentLocation.lng],
-    GAMEPLAY_ZOOM_LEVEL
+    GAMEPLAY_ZOOM_LEVEL,
   );
   dispatchCacheGeneration(currentLocation);
 }
@@ -331,7 +334,7 @@ const playerMoved = (event: CustomEvent, map: Map) => {
     marker.on("popupclose", () => {
       momentos.set(cell, geocache.toMomento());
       const collectedCoins = coinDisplayList.querySelectorAll(
-        'li[collected="true"]'
+        'li[collected="true"]',
       );
       collectedCoins.forEach((coin) => {
         coin.remove();
