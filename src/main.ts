@@ -32,10 +32,10 @@ controlPanel.id = "control-panel";
 const controlButtons = [
   { text: "Start Position Tracking", id: "startTracking" },
   { text: "Stop Position Tracking", id: "stopTracking" },
-  { text: "Move Up", id: "moveUp" },
-  { text: "Move Down", id: "moveDown" },
-  { text: "Move Left", id: "moveLeft" },
-  { text: "Move Right", id: "moveRight" },
+  { text: "Move Up", id: "up" },
+  { text: "Move Down", id: "down" },
+  { text: "Move Left", id: "left" },
+  { text: "Move Right", id: "right" },
   { text: "Reset State", id: "resetState" },
 ];
 
@@ -70,6 +70,8 @@ app.appendChild(inventoryPanel);
 //Anchor map at Oaks class
 const OAKES_CLASSROOM = leaflet.latLng(36.98949379578401, -122.06277128548504);
 
+let currentLocation: location = { ...OAKES_CLASSROOM };
+
 // Create the leaflet map instance
 const leafletMap = leaflet.map(document.getElementById("map")!, {
   center: OAKES_CLASSROOM,
@@ -97,6 +99,7 @@ type location = {
 interface Coin {
   cell: Cell;
   serial: number;
+  isCollected: boolean;
 }
 
 // Map interface to hide leaflet
@@ -104,12 +107,14 @@ interface Map {
   addMarker(lat: number, lng: number): leaflet.Marker;
   addPlayerCircle(lat: number, lng: number): void;
   UI: leaflet.Map;
+  markers: leaflet.LayerGroup;
 }
 
 const map: Map = {
   UI: leafletMap,
+  markers: leaflet.layerGroup().addTo(leafletMap),
   addMarker(lat: number, lng: number) {
-    const marker = leaflet.marker([lat, lng]).addTo(map.UI);
+    const marker = leaflet.marker([lat, lng]).addTo(map.markers);
     return marker;
   },
   addPlayerCircle(lat: number, lng: number) {
@@ -120,9 +125,73 @@ const map: Map = {
         fillOpacity: 1,
         radius: 2,
       })
-      .addTo(map.UI);
+      .addTo(map.markers);
   },
 };
+
+interface Geocache {
+  cell: Cell;
+  toMomento(): string;
+  fromMomento(momento: string): void;
+  coins: Coin[];
+  displayCoins(coinDisplayList: HTMLOListElement): void;
+}
+
+function createGeocache(cell: Cell): Geocache {
+  return {
+    coins: [],
+    cell: cell,
+    toMomento() {
+      let momento = "";
+      this.coins.forEach((coin) => {
+        momento += coin.cell.i + ":" + coin.cell.j + "#" + coin.serial + "X";
+        if (coin.isCollected) {
+          momento += "1";
+        } else {
+          momento += "0";
+        }
+        momento += ",";
+      });
+      momento = momento.replace(/,$/, "");
+      return momento;
+    },
+    fromMomento(momento: string) {
+      momento.split(",").forEach((coinString) => {
+        const i: number = parseInt(
+          coinString.slice(0, coinString.indexOf(":"))
+        );
+        const j: number = parseInt(
+          coinString.slice(coinString.indexOf(":") + 1, coinString.indexOf("#"))
+        );
+        const s: number = parseInt(
+          coinString.slice(coinString.indexOf("#") + 1),
+          coinString.indexOf("X")
+        );
+        let isCollected = false;
+        if (coinString.slice(coinString.indexOf("X") + 1) === "1") {
+          isCollected = true;
+        }
+        this.coins.push({
+          cell: { i, j },
+          serial: s,
+          isCollected: isCollected,
+        });
+      });
+    },
+    displayCoins(coinDisplayList: HTMLOListElement) {
+      this.coins.forEach((coin) => {
+        const coinItem = document.createElement("li");
+        coinItem.textContent = `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
+
+        createCollectButton(coin, coinDisplayList, coinItem);
+
+        coinDisplayList.appendChild(coinItem);
+      });
+    },
+  };
+}
+
+const momentos = new Map<Cell, string>();
 
 const board = new Board(TILE_DEGREES, NEIGHBORHOOD_SIZE);
 
@@ -144,13 +213,14 @@ const generateCacheLocations = (playerLocation: location): location[] => {
 
   return cacheLocations;
 };
-// Store coins as ints for now
+
 const inventory: Coin[] = [];
 
 //Collect coin into inventory
 function collectCoin(coinItem: HTMLElement, coin: Coin) {
   inventory.push(coin);
   coinItem.setAttribute("collected", "true");
+  coin.isCollected = true;
   const inventoryItem = document.createElement("li");
   inventoryItem.textContent = `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
   inventoryList.appendChild(inventoryItem);
@@ -196,8 +266,33 @@ function hideDepositButtons() {
   depositButtons.forEach((button) => button.remove());
 }
 
+function movePlayer(direction: "up" | "down" | "left" | "right") {
+  const step = TILE_DEGREES;
+  switch (direction) {
+    case "up":
+      currentLocation.lat += step;
+      break;
+    case "down":
+      currentLocation.lat -= step;
+      break;
+    case "left":
+      currentLocation.lng -= step;
+      break;
+    case "right":
+      currentLocation.lng += step;
+      break;
+  }
+  map.UI.setView(
+    [currentLocation.lat, currentLocation.lng],
+    GAMEPLAY_ZOOM_LEVEL
+  );
+  dispatchCacheGeneration(currentLocation);
+}
+
 // Add cache and popups when player moves.
 const playerMoved = (event: CustomEvent, map: Map) => {
+  map.markers.clearLayers();
+
   const playerLocation: location = event.detail.playerLocation;
   const cacheLocations = generateCacheLocations(playerLocation);
 
@@ -205,37 +300,39 @@ const playerMoved = (event: CustomEvent, map: Map) => {
 
   // Display caches on the map
   cacheLocations.forEach((location) => {
+    const cell = board.getCellForPoint(location);
+    const geocache = createGeocache(cell);
+    if (momentos.has(cell)) {
+      geocache.fromMomento(momentos.get(cell) as string);
+    }
     const marker = map.addMarker(location.lat, location.lng);
-
     const popupContainer = document.createElement("div");
 
     const title = document.createElement("h3");
     title.textContent = "Cache Location";
     popupContainer.appendChild(title);
 
-    const coinList = document.createElement("ol");
-    const coinsAvailable = Math.floor(Math.random() * 10) + 1;
-
-    for (let i = 0; i < coinsAvailable; i++) {
-      const cell = board.getCellForPoint(location);
-      const coin = { cell, serial: i };
-
-      const coinItem = document.createElement("li");
-      coinItem.textContent = `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
-
-      createCollectButton(coin, coinList, coinItem);
-
-      coinList.appendChild(coinItem);
+    if (geocache.coins.length == 0) {
+      const coinsAvailable = Math.floor(Math.random() * 10) + 1;
+      for (let i = 0; i < coinsAvailable; i++) {
+        const coin = { cell, serial: i, isCollected: false };
+        geocache.coins.push(coin);
+      }
     }
-    popupContainer.appendChild(coinList);
+    const coinDisplayList = document.createElement("ol");
+    geocache.displayCoins(coinDisplayList);
+    popupContainer.appendChild(coinDisplayList);
 
     //Listeners for deposit buttons
     marker.on("popupopen", () => {
-      showDepositButtons(coinList);
+      showDepositButtons(coinDisplayList);
     });
 
     marker.on("popupclose", () => {
-      const collectedCoins = coinList.querySelectorAll('li[collected="true"]');
+      momentos.set(cell, geocache.toMomento());
+      const collectedCoins = coinDisplayList.querySelectorAll(
+        'li[collected="true"]'
+      );
       collectedCoins.forEach((coin) => {
         coin.remove();
       });
@@ -254,6 +351,9 @@ function createCollectButton(
 ) {
   const collectButton = document.createElement("button");
   collectButton.textContent = "Collect";
+  if (coin.isCollected) {
+    collectButton.disabled = true;
+  }
   collectButton.onclick = () => {
     collectCoin(coinItem, coin), showDepositButtons(coinList);
     collectButton.disabled = true;
@@ -262,14 +362,23 @@ function createCollectButton(
 }
 
 const dispatchCacheGeneration = (playerLocation: location) => {
-  const event = new CustomEvent("playerMoved", {
+  const playerMovedEvent = new CustomEvent("playerMoved", {
     detail: { playerLocation },
   });
-  document.dispatchEvent(event as Event);
+  document.dispatchEvent(playerMovedEvent as Event);
 };
 
 document.addEventListener("playerMoved", (event) => {
   playerMoved(event as CustomEvent, map);
 });
 
-dispatchCacheGeneration(OAKES_CLASSROOM);
+//Genetate caches for original locaition
+dispatchCacheGeneration(currentLocation);
+
+//Event listeners for moving buttons
+const directions: string[] = ["up", "down", "left", "right"];
+directions.forEach((direction) => {
+  document.getElementById(direction)?.addEventListener("click", () => {
+    movePlayer(direction as "up" | "down" | "left" | "right");
+  });
+});
