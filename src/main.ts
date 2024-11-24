@@ -70,7 +70,7 @@ app.appendChild(inventoryPanel);
 //Anchor map at Oaks class
 const OAKES_CLASSROOM = leaflet.latLng(36.98949379578401, -122.06277128548504);
 
-let currentLocation: location = { ...OAKES_CLASSROOM };
+const currentLocation: location = { ...OAKES_CLASSROOM };
 
 // Create the leaflet map instance
 const leafletMap = leaflet.map(document.getElementById("map")!, {
