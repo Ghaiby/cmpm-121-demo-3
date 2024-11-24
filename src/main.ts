@@ -158,14 +158,14 @@ function createGeocache(cell: Cell): Geocache {
     fromMomento(momento: string) {
       momento.split(",").forEach((coinString) => {
         const i: number = parseInt(
-          coinString.slice(0, coinString.indexOf(":"))
+          coinString.slice(0, coinString.indexOf(":")),
         );
         const colonIndex = coinString.indexOf(":") + 1;
         const hashtagIndex = coinString.indexOf("#");
         const j: number = parseInt(coinString.slice(colonIndex, hashtagIndex));
         const s: number = parseInt(
           coinString.slice(coinString.indexOf("#") + 1),
-          coinString.indexOf("X")
+          coinString.indexOf("X"),
         );
         let isCollected = false;
         if (coinString.slice(coinString.indexOf("X") + 1) === "1") {
@@ -230,7 +230,7 @@ function collectCoin(coinItem: HTMLElement, coin: Coin) {
 function depositCoin(
   coin: Coin,
   inventoryItem: HTMLElement,
-  targetCoinList: HTMLElement
+  targetCoinList: HTMLElement,
 ) {
   // Add the coin to the cache's coin list
   const coinItem = document.createElement("li");
@@ -284,7 +284,7 @@ function movePlayer(direction: "up" | "down" | "left" | "right") {
   }
   map.UI.setView(
     [currentLocation.lat, currentLocation.lng],
-    GAMEPLAY_ZOOM_LEVEL
+    GAMEPLAY_ZOOM_LEVEL,
   );
   dispatchCacheGeneration(currentLocation);
 }
@@ -331,7 +331,7 @@ const playerMoved = (event: CustomEvent, map: Map) => {
     marker.on("popupclose", () => {
       momentos.set(cell, geocache.toMomento());
       const collectedCoins = coinDisplayList.querySelectorAll(
-        'li[collected="true"]'
+        'li[collected="true"]',
       );
       collectedCoins.forEach((coin) => {
         coin.remove();
@@ -347,7 +347,7 @@ const playerMoved = (event: CustomEvent, map: Map) => {
 function createCollectButton(
   coin: Coin,
   coinList: HTMLElement,
-  coinItem: HTMLElement
+  coinItem: HTMLElement,
 ) {
   const collectButton = document.createElement("button");
   collectButton.textContent = "Collect";
