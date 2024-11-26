@@ -158,14 +158,14 @@ function createGeocache(cell: Cell): Geocache {
     fromMomento(momento: string) {
       momento.split(",").forEach((coinString) => {
         const i: number = parseInt(
-          coinString.slice(0, coinString.indexOf(":"))
+          coinString.slice(0, coinString.indexOf(":")),
         );
         const colonIndex = coinString.indexOf(":") + 1;
         const hashtagIndex = coinString.indexOf("#");
         const j: number = parseInt(coinString.slice(colonIndex, hashtagIndex));
         const s: number = parseInt(
           coinString.slice(coinString.indexOf("#") + 1),
-          coinString.indexOf("X")
+          coinString.indexOf("X"),
         );
         let isCollected = false;
         if (coinString.slice(coinString.indexOf("X") + 1) === "1") {
@@ -294,7 +294,7 @@ function movePlayer(direction: "up" | "down" | "left" | "right") {
   }
   map.UI.setView(
     [currentLocation.lat, currentLocation.lng],
-    GAMEPLAY_ZOOM_LEVEL
+    GAMEPLAY_ZOOM_LEVEL,
   );
   dispatchCacheGeneration(currentLocation);
 }
@@ -345,7 +345,7 @@ const playerMoved = (event: CustomEvent, map: Map) => {
     marker.on("popupclose", () => {
       momentos.set(cell, geocache.toMomento());
       const collectedCoins = coinDisplayList.querySelectorAll(
-        'li[collected="true"]'
+        'li[collected="true"]',
       );
       collectedCoins.forEach((coin) => {
         coin.remove();
@@ -429,7 +429,7 @@ document.addEventListener("startTracking", () => {
     {
       enableHighAccuracy: true,
       maximumAge: 0,
-    }
+    },
   );
 });
 
@@ -451,7 +451,7 @@ const STORAGE_KEYS = {
 function saveGameState() {
   localStorage.setItem(
     STORAGE_KEYS.PLAYER_LOCATION,
-    JSON.stringify(currentLocation)
+    JSON.stringify(currentLocation),
   );
 
   localStorage.setItem(STORAGE_KEYS.INVENTORY, JSON.stringify(inventory));
@@ -472,13 +472,14 @@ function loadGameState() {
     //Redraw inventory
     savedCoins.forEach((coin) => {
       const inventoryItem = document.createElement("li");
-      inventoryItem.textContent = `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
+      inventoryItem.textContent = 
+      `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
       inventoryList.appendChild(inventoryItem);
     });
   }
   map.UI.setView(
     [currentLocation.lat, currentLocation.lng],
-    GAMEPLAY_ZOOM_LEVEL
+    GAMEPLAY_ZOOM_LEVEL,
   );
 }
 
@@ -508,7 +509,7 @@ document.addEventListener("resetState", () => {
 
     map.UI.setView(
       [OAKES_CLASSROOM.lat, OAKES_CLASSROOM.lng],
-      GAMEPLAY_ZOOM_LEVEL
+      GAMEPLAY_ZOOM_LEVEL,
     );
     inventory.length = 0;
     inventoryList.innerHTML = "";
