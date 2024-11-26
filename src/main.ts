@@ -158,14 +158,14 @@ function createGeocache(cell: Cell): Geocache {
     fromMomento(momento: string) {
       momento.split(",").forEach((coinString) => {
         const i: number = parseInt(
-          coinString.slice(0, coinString.indexOf(":")),
+          coinString.slice(0, coinString.indexOf(":"))
         );
         const colonIndex = coinString.indexOf(":") + 1;
         const hashtagIndex = coinString.indexOf("#");
         const j: number = parseInt(coinString.slice(colonIndex, hashtagIndex));
         const s: number = parseInt(
           coinString.slice(coinString.indexOf("#") + 1),
-          coinString.indexOf("X"),
+          coinString.indexOf("X")
         );
         let isCollected = false;
         if (coinString.slice(coinString.indexOf("X") + 1) === "1") {
@@ -251,7 +251,7 @@ function depositCoin(
   if (RemoveIndex > -1) {
     inventory.splice(RemoveIndex, 1);
   }
-  
+
   saveGameState();
 }
 
@@ -294,7 +294,7 @@ function movePlayer(direction: "up" | "down" | "left" | "right") {
   }
   map.UI.setView(
     [currentLocation.lat, currentLocation.lng],
-    GAMEPLAY_ZOOM_LEVEL,
+    GAMEPLAY_ZOOM_LEVEL
   );
   dispatchCacheGeneration(currentLocation);
 }
@@ -306,7 +306,7 @@ const playerMoved = (event: CustomEvent, map: Map) => {
   const playerLocation: location = event.detail.playerLocation;
   const cacheLocations = generateCacheLocations(playerLocation);
   map.addPlayerCircle(playerLocation.lat, playerLocation.lng);
-  
+
   //update polyline
   movementHistory.push([playerLocation.lat, playerLocation.lng]);
   movementPolyline.setLatLngs(movementHistory);
@@ -345,7 +345,7 @@ const playerMoved = (event: CustomEvent, map: Map) => {
     marker.on("popupclose", () => {
       momentos.set(cell, geocache.toMomento());
       const collectedCoins = coinDisplayList.querySelectorAll(
-        'li[collected="true"]',
+        'li[collected="true"]'
       );
       collectedCoins.forEach((coin) => {
         coin.remove();
@@ -398,118 +398,127 @@ directions.forEach((direction) => {
 let watchId: number | null = null;
 
 document.getElementById("startTracking")?.addEventListener("click", () => {
-    const event = new CustomEvent("startTracking");
-    document.dispatchEvent(event);
-  });
-  
-  document.getElementById("stopTracking")?.addEventListener("click", () => {
-    const event = new CustomEvent("stopTracking");
-    document.dispatchEvent(event);
-  });
-  
-  document.addEventListener("startTracking", () => {
-    if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.");
-      return;
+  const event = new CustomEvent("startTracking");
+  document.dispatchEvent(event);
+});
+
+document.getElementById("stopTracking")?.addEventListener("click", () => {
+  const event = new CustomEvent("stopTracking");
+  document.dispatchEvent(event);
+});
+
+document.addEventListener("startTracking", () => {
+  if (!navigator.geolocation) {
+    alert("Geolocation is not supported by your browser.");
+    return;
+  }
+
+  watchId = navigator.geolocation.watchPosition(
+    (position) => {
+      const { latitude, longitude } = position.coords;
+      console.log("tracjing");
+      currentLocation.lat = latitude;
+      currentLocation.lng = longitude;
+      map.UI.setView([latitude, longitude], GAMEPLAY_ZOOM_LEVEL);
+      dispatchCacheGeneration(currentLocation);
+    },
+    (error) => {
+      console.error("Error getting geolocation:", error);
+      alert("Unable to track your location.");
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
     }
-  
-    watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        console.log("tracjing");
-        currentLocation.lat = latitude;
-        currentLocation.lng = longitude;
-        map.UI.setView([latitude, longitude], GAMEPLAY_ZOOM_LEVEL);
-        dispatchCacheGeneration(currentLocation);
-      },
-      (error) => {
-        console.error("Error getting geolocation:", error);
-        alert("Unable to track your location.");
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-      }
-    );
-  });
-  
-  // Stop Tracking Event Handler
-  document.addEventListener("stopTracking", () => {
-    if (watchId !== null) {
-      navigator.geolocation.clearWatch(watchId);
-      watchId = null;
-    }
-  });
+  );
+});
+
+// Stop Tracking Event Handler
+document.addEventListener("stopTracking", () => {
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+});
 
 // state saving
 
 const STORAGE_KEYS = {
-    PLAYER_LOCATION: "geocoin_player_location",
-    INVENTORY: "geocoin_inventory",
-  };
+  PLAYER_LOCATION: "geocoin_player_location",
+  INVENTORY: "geocoin_inventory",
+};
 
 function saveGameState() {
-    localStorage.setItem(STORAGE_KEYS.PLAYER_LOCATION, JSON.stringify(currentLocation));
-  
-    localStorage.setItem(STORAGE_KEYS.INVENTORY, JSON.stringify(inventory));
-  }
-  
-  // Load the entire game state from localStorage
-  function loadGameState() {
-    const savedLocation = localStorage.getItem(STORAGE_KEYS.PLAYER_LOCATION);
-    if (savedLocation) {
-      currentLocation = JSON.parse(savedLocation);
-    }
-  
-    const savedInventory = localStorage.getItem(STORAGE_KEYS.INVENTORY);
-    if (savedInventory) {
-      const savedCoins: Coin[] = JSON.parse(savedInventory);
-      inventory.push(...savedCoins);
-  
-      //Redraw inventory 
-      savedCoins.forEach((coin) => {
-        const inventoryItem = document.createElement("li");
-        inventoryItem.textContent = `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
-        inventoryList.appendChild(inventoryItem);
-      });
-    }
-    map.UI.setView(
-        [currentLocation.lat, currentLocation.lng],
-        GAMEPLAY_ZOOM_LEVEL,
-      );
+  localStorage.setItem(
+    STORAGE_KEYS.PLAYER_LOCATION,
+    JSON.stringify(currentLocation)
+  );
+
+  localStorage.setItem(STORAGE_KEYS.INVENTORY, JSON.stringify(inventory));
+}
+
+// Load the entire game state from localStorage
+function loadGameState() {
+  const savedLocation = localStorage.getItem(STORAGE_KEYS.PLAYER_LOCATION);
+  if (savedLocation) {
+    currentLocation = JSON.parse(savedLocation);
   }
 
- //Movement poly line
- const movementHistory: [number, number][] = [[currentLocation.lat, currentLocation.lng]];
- const movementPolyline = leaflet.polyline(movementHistory, { color: 'red' }).addTo(map.UI);
+  const savedInventory = localStorage.getItem(STORAGE_KEYS.INVENTORY);
+  if (savedInventory) {
+    const savedCoins: Coin[] = JSON.parse(savedInventory);
+    inventory.push(...savedCoins);
+
+    //Redraw inventory
+    savedCoins.forEach((coin) => {
+      const inventoryItem = document.createElement("li");
+      inventoryItem.textContent = `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
+      inventoryList.appendChild(inventoryItem);
+    });
+  }
+  map.UI.setView(
+    [currentLocation.lat, currentLocation.lng],
+    GAMEPLAY_ZOOM_LEVEL
+  );
+}
+
+//Movement poly line
+const movementHistory: [number, number][] = [
+  [currentLocation.lat, currentLocation.lng],
+];
+const movementPolyline = leaflet
+  .polyline(movementHistory, { color: "red" })
+  .addTo(map.UI);
 
 //reset functionality
 document.getElementById("resetState")?.addEventListener("click", () => {
-    const event = new CustomEvent("resetState");
-    document.dispatchEvent(event);
-  });
+  const event = new CustomEvent("resetState");
+  document.dispatchEvent(event);
+});
 document.addEventListener("resetState", () => {
-    const confirmation = prompt("Are you sure you want to reset? Type 'yes' to confirm.");
-    if (confirmation?.toLowerCase() === "yes") {
+  const confirmation = prompt("want to reset? Type 'yes' to confirm.");
+  if (confirmation?.toLowerCase() === "yes") {
     currentLocation = { ...OAKES_CLASSROOM };
-  
+
     // Clear movement history and polyline
     movementHistory.length = 0;
     movementPolyline.setLatLngs([]);
-    
+
     map.markers.clearLayers();
-  
-    map.UI.setView([OAKES_CLASSROOM.lat, OAKES_CLASSROOM.lng], GAMEPLAY_ZOOM_LEVEL);
+
+    map.UI.setView(
+      [OAKES_CLASSROOM.lat, OAKES_CLASSROOM.lng],
+      GAMEPLAY_ZOOM_LEVEL
+    );
     inventory.length = 0;
     inventoryList.innerHTML = "";
     localStorage.clear();
 
-    document.dispatchEvent(new CustomEvent("stopTracking"))
+    document.dispatchEvent(new CustomEvent("stopTracking"));
     dispatchCacheGeneration(currentLocation);
-    }
-}); 
+  }
+});
 
-
-  //Genetate caches for original locaition
+//Genetate caches for original locaition
 loadGameState();
 dispatchCacheGeneration(currentLocation);
