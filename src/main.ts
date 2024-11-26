@@ -1,5 +1,5 @@
 // @deno-types="npm:@types/leaflet@^1.9.14"
-import leaflet from "leaflet";
+import leaflet, { type PointTuple } from "leaflet";
 
 // Style sheets
 import "leaflet/dist/leaflet.css";
@@ -70,7 +70,7 @@ app.appendChild(inventoryPanel);
 //Anchor map at Oaks class
 const OAKES_CLASSROOM = leaflet.latLng(36.98949379578401, -122.06277128548504);
 
-const currentLocation: location = { ...OAKES_CLASSROOM };
+let currentLocation: location = { ...OAKES_CLASSROOM };
 
 // Create the leaflet map instance
 const leafletMap = leaflet.map(document.getElementById("map")!, {
@@ -223,7 +223,15 @@ function collectCoin(coinItem: HTMLElement, coin: Coin) {
   coin.isCollected = true;
   const inventoryItem = document.createElement("li");
   inventoryItem.textContent = `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
+
+  inventoryItem.addEventListener("click", () => {
+    const bounds = board.getCellBounds(coin.cell);
+    const center = bounds.getCenter();
+    map.UI.setView([center.lat, center.lng], GAMEPLAY_ZOOM_LEVEL);
+  });
+
   inventoryList.appendChild(inventoryItem);
+  saveGameState();
 }
 
 //Deposit coin into cache
@@ -243,6 +251,8 @@ function depositCoin(
   if (RemoveIndex > -1) {
     inventory.splice(RemoveIndex, 1);
   }
+  
+  saveGameState();
 }
 
 //Add the deposit buttons when a cache is clicked
@@ -295,9 +305,13 @@ const playerMoved = (event: CustomEvent, map: Map) => {
 
   const playerLocation: location = event.detail.playerLocation;
   const cacheLocations = generateCacheLocations(playerLocation);
-
   map.addPlayerCircle(playerLocation.lat, playerLocation.lng);
+  
+  //update polyline
+  movementHistory.push([playerLocation.lat, playerLocation.lng]);
+  movementPolyline.setLatLngs(movementHistory);
 
+  saveGameState();
   // Display caches on the map
   cacheLocations.forEach((location) => {
     const cell = board.getCellForPoint(location);
@@ -336,7 +350,6 @@ const playerMoved = (event: CustomEvent, map: Map) => {
       collectedCoins.forEach((coin) => {
         coin.remove();
       });
-
       hideDepositButtons();
     });
 
@@ -372,9 +385,6 @@ document.addEventListener("playerMoved", (event) => {
   playerMoved(event as CustomEvent, map);
 });
 
-//Genetate caches for original locaition
-dispatchCacheGeneration(currentLocation);
-
 //Event listeners for moving buttons
 const directions: string[] = ["up", "down", "left", "right"];
 directions.forEach((direction) => {
@@ -382,3 +392,124 @@ directions.forEach((direction) => {
     movePlayer(direction as "up" | "down" | "left" | "right");
   });
 });
+
+// Events for location tracking
+
+let watchId: number | null = null;
+
+document.getElementById("startTracking")?.addEventListener("click", () => {
+    const event = new CustomEvent("startTracking");
+    document.dispatchEvent(event);
+  });
+  
+  document.getElementById("stopTracking")?.addEventListener("click", () => {
+    const event = new CustomEvent("stopTracking");
+    document.dispatchEvent(event);
+  });
+  
+  document.addEventListener("startTracking", () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+  
+    watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        console.log("tracjing");
+        currentLocation.lat = latitude;
+        currentLocation.lng = longitude;
+        map.UI.setView([latitude, longitude], GAMEPLAY_ZOOM_LEVEL);
+        dispatchCacheGeneration(currentLocation);
+      },
+      (error) => {
+        console.error("Error getting geolocation:", error);
+        alert("Unable to track your location.");
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+      }
+    );
+  });
+  
+  // Stop Tracking Event Handler
+  document.addEventListener("stopTracking", () => {
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    }
+  });
+
+// state saving
+
+const STORAGE_KEYS = {
+    PLAYER_LOCATION: "geocoin_player_location",
+    INVENTORY: "geocoin_inventory",
+  };
+
+function saveGameState() {
+    localStorage.setItem(STORAGE_KEYS.PLAYER_LOCATION, JSON.stringify(currentLocation));
+  
+    localStorage.setItem(STORAGE_KEYS.INVENTORY, JSON.stringify(inventory));
+  }
+  
+  // Load the entire game state from localStorage
+  function loadGameState() {
+    const savedLocation = localStorage.getItem(STORAGE_KEYS.PLAYER_LOCATION);
+    if (savedLocation) {
+      currentLocation = JSON.parse(savedLocation);
+    }
+  
+    const savedInventory = localStorage.getItem(STORAGE_KEYS.INVENTORY);
+    if (savedInventory) {
+      const savedCoins: Coin[] = JSON.parse(savedInventory);
+      inventory.push(...savedCoins);
+  
+      //Redraw inventory 
+      savedCoins.forEach((coin) => {
+        const inventoryItem = document.createElement("li");
+        inventoryItem.textContent = `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
+        inventoryList.appendChild(inventoryItem);
+      });
+    }
+    map.UI.setView(
+        [currentLocation.lat, currentLocation.lng],
+        GAMEPLAY_ZOOM_LEVEL,
+      );
+  }
+
+ //Movement poly line
+ const movementHistory: [number, number][] = [[currentLocation.lat, currentLocation.lng]];
+ const movementPolyline = leaflet.polyline(movementHistory, { color: 'red' }).addTo(map.UI);
+
+//reset functionality
+document.getElementById("resetState")?.addEventListener("click", () => {
+    const event = new CustomEvent("resetState");
+    document.dispatchEvent(event);
+  });
+document.addEventListener("resetState", () => {
+    const confirmation = prompt("Are you sure you want to reset? Type 'yes' to confirm.");
+    if (confirmation?.toLowerCase() === "yes") {
+    currentLocation = { ...OAKES_CLASSROOM };
+  
+    // Clear movement history and polyline
+    movementHistory.length = 0;
+    movementPolyline.setLatLngs([]);
+    
+    map.markers.clearLayers();
+  
+    map.UI.setView([OAKES_CLASSROOM.lat, OAKES_CLASSROOM.lng], GAMEPLAY_ZOOM_LEVEL);
+    inventory.length = 0;
+    inventoryList.innerHTML = "";
+    localStorage.clear();
+
+    document.dispatchEvent(new CustomEvent("stopTracking"))
+    dispatchCacheGeneration(currentLocation);
+    }
+}); 
+
+
+  //Genetate caches for original locaition
+loadGameState();
+dispatchCacheGeneration(currentLocation);
