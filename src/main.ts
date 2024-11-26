@@ -472,8 +472,9 @@ function loadGameState() {
     //Redraw inventory
     savedCoins.forEach((coin) => {
       const inventoryItem = document.createElement("li");
-      inventoryItem.textContent = 
-      `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
+      const i = coin.cell.i;
+      const j = coin.cell.j;
+      inventoryItem.textContent = `${i}:${j}#${coin.serial}`;
       inventoryList.appendChild(inventoryItem);
     });
   }
