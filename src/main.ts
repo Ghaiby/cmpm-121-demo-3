@@ -10,12 +10,11 @@ import "./leafletWorkaround.ts";
 
 import luck from "./luck.ts";
 
-import { Board, Cell } from "./board.ts";
-
+import {  Cell } from "./board.ts";
+import { saveGameState, loadGameState, gameState, createGamestate } from "./gamestate.ts";
 // define constants
 const GAMEPLAY_ZOOM_LEVEL = 19;
 const TILE_DEGREES = 1e-4;
-const NEIGHBORHOOD_SIZE = 8;
 const CACHE_SPAWN_PROBABILITY = 0.1;
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -69,27 +68,7 @@ app.appendChild(inventoryPanel);
 
 //Anchor map at Oaks class
 const OAKES_CLASSROOM = leaflet.latLng(36.98949379578401, -122.06277128548504);
-
-let currentLocation: location = { ...OAKES_CLASSROOM };
-
-// Create the leaflet map instance
-const leafletMap = leaflet.map(document.getElementById("map")!, {
-  center: OAKES_CLASSROOM,
-  zoom: GAMEPLAY_ZOOM_LEVEL,
-  minZoom: GAMEPLAY_ZOOM_LEVEL,
-  maxZoom: GAMEPLAY_ZOOM_LEVEL,
-  zoomControl: false,
-  scrollWheelZoom: false,
-});
-
-// Populate the map with a background tile layer
-leaflet
-  .tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution:
-      '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  })
-  .addTo(leafletMap);
+const state: gameState = createGamestate({ ...OAKES_CLASSROOM });
 
 type location = {
   lat: number;
@@ -111,8 +90,8 @@ interface Map {
 }
 
 const map: Map = {
-  UI: leafletMap,
-  markers: leaflet.layerGroup().addTo(leafletMap),
+  UI: state.leafletMap,
+  markers: leaflet.layerGroup().addTo(state.leafletMap),
   addMarker(lat: number, lng: number) {
     const marker = leaflet.marker([lat, lng]).addTo(map.markers);
     return marker;
@@ -191,21 +170,17 @@ function createGeocache(cell: Cell): Geocache {
   };
 }
 
-const momentos = new Map<Cell, string>();
-
-const board = new Board(TILE_DEGREES, NEIGHBORHOOD_SIZE);
-
 //Place a cache at about 10% of the grid cells that are within 8 cell-steps away
 const generateCacheLocations = (playerLocation: location): location[] => {
   const point = new leaflet.LatLng(playerLocation.lat, playerLocation.lng);
-  const nearbyCells = board.getCellsNearPoint(point);
+  const nearbyCells = state.board.getCellsNearPoint(point);
 
   const cacheLocations: location[] = [];
 
   nearbyCells.forEach((cell) => {
     const cellKey = [cell.i, cell.j].toString();
     if (luck(cellKey) < CACHE_SPAWN_PROBABILITY) {
-      const bounds = board.getCellBounds(cell);
+      const bounds = state.board.getCellBounds(cell);
       const center = bounds.getCenter();
       cacheLocations.push({ lat: center.lat, lng: center.lng });
     }
@@ -213,25 +188,22 @@ const generateCacheLocations = (playerLocation: location): location[] => {
 
   return cacheLocations;
 };
-
-const inventory: Coin[] = [];
-
 //Collect coin into inventory
 function collectCoin(coinItem: HTMLElement, coin: Coin) {
-  inventory.push(coin);
+  state.inventory.push(coin);
   coinItem.setAttribute("collected", "true");
   coin.isCollected = true;
   const inventoryItem = document.createElement("li");
   inventoryItem.textContent = `${coin.cell.i}:${coin.cell.j}#${coin.serial}`;
 
   inventoryItem.addEventListener("click", () => {
-    const bounds = board.getCellBounds(coin.cell);
+    const bounds = state.board.getCellBounds(coin.cell);
     const center = bounds.getCenter();
     map.UI.setView([center.lat, center.lng], GAMEPLAY_ZOOM_LEVEL);
   });
 
   inventoryList.appendChild(inventoryItem);
-  saveGameState();
+  saveGameState(state);
 }
 
 //Deposit coin into cache
@@ -247,12 +219,12 @@ function depositCoin(
   createCollectButton(coin, targetCoinList, coinItem);
 
   inventoryItem.remove();
-  const RemoveIndex = inventory.indexOf(coin, 0);
+  const RemoveIndex = state.inventory.indexOf(coin, 0);
   if (RemoveIndex > -1) {
-    inventory.splice(RemoveIndex, 1);
+    state.inventory.splice(RemoveIndex, 1);
   }
 
-  saveGameState();
+  saveGameState(state);
 }
 
 //Add the deposit buttons when a cache is clicked
@@ -263,7 +235,7 @@ function showDepositButtons(targetCoinList: HTMLElement) {
       const depositButton = document.createElement("button");
       depositButton.textContent = "Deposit";
       depositButton.classList.add("deposit-button");
-      const coin = inventory[index];
+      const coin = state.inventory[index];
       depositButton.onclick = () =>
         depositCoin(coin, item as HTMLElement, targetCoinList);
       item.appendChild(depositButton);
@@ -280,23 +252,31 @@ function movePlayer(direction: "up" | "down" | "left" | "right") {
   const step = TILE_DEGREES;
   switch (direction) {
     case "up":
-      currentLocation.lat += step;
+      state.currentLocation.lat += step;
       break;
     case "down":
-      currentLocation.lat -= step;
+      state.currentLocation.lat -= step;
       break;
     case "left":
-      currentLocation.lng -= step;
+      state.currentLocation.lng -= step;
       break;
     case "right":
-      currentLocation.lng += step;
+      state.currentLocation.lng += step;
       break;
   }
   map.UI.setView(
-    [currentLocation.lat, currentLocation.lng],
+    [state.currentLocation.lat, state.currentLocation.lng],
     GAMEPLAY_ZOOM_LEVEL,
   );
-  dispatchCacheGeneration(currentLocation);
+  dispatchCacheGeneration(state.currentLocation);
+}
+
+function generateNewCoins(geocache: Geocache) {
+  const coinsAvailable = Math.floor(Math.random() * 10) + 1;
+  for (let i = 0; i < coinsAvailable; i++) {
+    const coin = { cell: geocache.cell, serial: i, isCollected: false };
+    geocache.coins.push(coin);
+  }
 }
 
 // Add cache and popups when player moves.
@@ -307,17 +287,19 @@ const playerMoved = (event: CustomEvent, map: Map) => {
   const cacheLocations = generateCacheLocations(playerLocation);
   map.addPlayerCircle(playerLocation.lat, playerLocation.lng);
 
-  //update polyline
-  movementHistory.push([playerLocation.lat, playerLocation.lng]);
-  movementPolyline.setLatLngs(movementHistory);
+  updatePolyLine(playerLocation);
 
-  saveGameState();
+  saveGameState(state);
   // Display caches on the map
+  DisplayGeocaches(cacheLocations);
+};
+
+function DisplayGeocaches(cacheLocations: location[]) {
   cacheLocations.forEach((location) => {
-    const cell = board.getCellForPoint(location);
+    const cell = state.board.getCellForPoint(location);
     const geocache = createGeocache(cell);
-    if (momentos.has(cell)) {
-      geocache.fromMomento(momentos.get(cell) as string);
+    if (state.momentos.has(cell)) {
+      geocache.fromMomento(state.momentos.get(cell) as string);
     }
     const marker = map.addMarker(location.lat, location.lng);
     const popupContainer = document.createElement("div");
@@ -327,11 +309,7 @@ const playerMoved = (event: CustomEvent, map: Map) => {
     popupContainer.appendChild(title);
 
     if (geocache.coins.length == 0) {
-      const coinsAvailable = Math.floor(Math.random() * 10) + 1;
-      for (let i = 0; i < coinsAvailable; i++) {
-        const coin = { cell, serial: i, isCollected: false };
-        geocache.coins.push(coin);
-      }
+      generateNewCoins(geocache);
     }
     const coinDisplayList = document.createElement("ol");
     geocache.displayCoins(coinDisplayList);
@@ -343,9 +321,9 @@ const playerMoved = (event: CustomEvent, map: Map) => {
     });
 
     marker.on("popupclose", () => {
-      momentos.set(cell, geocache.toMomento());
+      state.momentos.set(cell, geocache.toMomento());
       const collectedCoins = coinDisplayList.querySelectorAll(
-        'li[collected="true"]',
+        'li[collected="true"]'
       );
       collectedCoins.forEach((coin) => {
         coin.remove();
@@ -355,7 +333,7 @@ const playerMoved = (event: CustomEvent, map: Map) => {
 
     marker.bindPopup(popupContainer);
   });
-};
+}
 
 function createCollectButton(
   coin: Coin,
@@ -374,6 +352,7 @@ function createCollectButton(
   coinItem.appendChild(collectButton);
 }
 
+//handle moving event
 const dispatchCacheGeneration = (playerLocation: location) => {
   const playerMovedEvent = new CustomEvent("playerMoved", {
     detail: { playerLocation },
@@ -416,11 +395,10 @@ document.addEventListener("startTracking", () => {
   watchId = navigator.geolocation.watchPosition(
     (position) => {
       const { latitude, longitude } = position.coords;
-      console.log("tracjing");
-      currentLocation.lat = latitude;
-      currentLocation.lng = longitude;
+      state.currentLocation.lat = latitude;
+      state.currentLocation.lng = longitude;
       map.UI.setView([latitude, longitude], GAMEPLAY_ZOOM_LEVEL);
-      dispatchCacheGeneration(currentLocation);
+      dispatchCacheGeneration(state.currentLocation);
     },
     (error) => {
       console.error("Error getting geolocation:", error);
@@ -441,56 +419,30 @@ document.addEventListener("stopTracking", () => {
   }
 });
 
-// state saving
+export function redrawInventory(savedCoins: Coin[]) {
+  state.inventory.push(...savedCoins);
 
-const STORAGE_KEYS = {
-  PLAYER_LOCATION: "geocoin_player_location",
-  INVENTORY: "geocoin_inventory",
-};
-
-function saveGameState() {
-  localStorage.setItem(
-    STORAGE_KEYS.PLAYER_LOCATION,
-    JSON.stringify(currentLocation),
-  );
-
-  localStorage.setItem(STORAGE_KEYS.INVENTORY, JSON.stringify(inventory));
-}
-
-// Load the entire game state from localStorage
-function loadGameState() {
-  const savedLocation = localStorage.getItem(STORAGE_KEYS.PLAYER_LOCATION);
-  if (savedLocation) {
-    currentLocation = JSON.parse(savedLocation);
-  }
-
-  const savedInventory = localStorage.getItem(STORAGE_KEYS.INVENTORY);
-  if (savedInventory) {
-    const savedCoins: Coin[] = JSON.parse(savedInventory);
-    inventory.push(...savedCoins);
-
-    //Redraw inventory
-    savedCoins.forEach((coin) => {
-      const inventoryItem = document.createElement("li");
-      const i = coin.cell.i;
-      const j = coin.cell.j;
-      inventoryItem.textContent = `${i}:${j}#${coin.serial}`;
-      inventoryList.appendChild(inventoryItem);
-    });
-  }
-  map.UI.setView(
-    [currentLocation.lat, currentLocation.lng],
-    GAMEPLAY_ZOOM_LEVEL,
-  );
+  savedCoins.forEach((coin) => {
+    const inventoryItem = document.createElement("li");
+    const i = coin.cell.i;
+    const j = coin.cell.j;
+    inventoryItem.textContent = `${i}:${j}#${coin.serial}`;
+    inventoryList.appendChild(inventoryItem);
+  });
 }
 
 //Movement poly line
 const movementHistory: [number, number][] = [
-  [currentLocation.lat, currentLocation.lng],
+  [state.currentLocation.lat, state.currentLocation.lng],
 ];
 const movementPolyline = leaflet
   .polyline(movementHistory, { color: "red" })
   .addTo(map.UI);
+
+  function updatePolyLine(playerLocation: location){
+    movementHistory.push([playerLocation.lat, playerLocation.lng]);
+    movementPolyline.setLatLngs(movementHistory);
+  }  
 
 //reset functionality
 document.getElementById("resetState")?.addEventListener("click", () => {
@@ -500,7 +452,7 @@ document.getElementById("resetState")?.addEventListener("click", () => {
 document.addEventListener("resetState", () => {
   const confirmation = prompt("want to reset? Type 'yes' to confirm.");
   if (confirmation?.toLowerCase() === "yes") {
-    currentLocation = { ...OAKES_CLASSROOM };
+    state.currentLocation = { ...OAKES_CLASSROOM };
 
     // Clear movement history and polyline
     movementHistory.length = 0;
@@ -512,15 +464,19 @@ document.addEventListener("resetState", () => {
       [OAKES_CLASSROOM.lat, OAKES_CLASSROOM.lng],
       GAMEPLAY_ZOOM_LEVEL,
     );
-    inventory.length = 0;
+    state.inventory.length = 0;
     inventoryList.innerHTML = "";
     localStorage.clear();
 
     document.dispatchEvent(new CustomEvent("stopTracking"));
-    dispatchCacheGeneration(currentLocation);
+    dispatchCacheGeneration(state.currentLocation);
   }
 });
 
 //Genetate caches for original locaition
-loadGameState();
-dispatchCacheGeneration(currentLocation);
+loadGameState(state);
+map.UI.setView(
+  [state.currentLocation.lat, state.currentLocation.lng],
+  GAMEPLAY_ZOOM_LEVEL,
+);
+dispatchCacheGeneration(state.currentLocation);
