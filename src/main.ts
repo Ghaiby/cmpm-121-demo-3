@@ -12,10 +12,10 @@ import luck from "./luck.ts";
 
 import { Cell } from "./board.ts";
 import {
-  saveGameState,
-  loadGameState,
-  gameState,
   createGamestate,
+  gameState,
+  loadGameState,
+  saveGameState,
 } from "./gamestate.ts";
 // define constants
 const GAMEPLAY_ZOOM_LEVEL = 19;
@@ -142,14 +142,14 @@ function createGeocache(cell: Cell): Geocache {
     fromMomento(momento: string) {
       momento.split(",").forEach((coinString) => {
         const i: number = parseInt(
-          coinString.slice(0, coinString.indexOf(":"))
+          coinString.slice(0, coinString.indexOf(":")),
         );
         const colonIndex = coinString.indexOf(":") + 1;
         const hashtagIndex = coinString.indexOf("#");
         const j: number = parseInt(coinString.slice(colonIndex, hashtagIndex));
         const s: number = parseInt(
           coinString.slice(coinString.indexOf("#") + 1),
-          coinString.indexOf("X")
+          coinString.indexOf("X"),
         );
         let isCollected = false;
         if (coinString.slice(coinString.indexOf("X") + 1) === "1") {
@@ -215,7 +215,7 @@ function collectCoin(coinItem: HTMLElement, coin: Coin) {
 function depositCoin(
   coin: Coin,
   inventoryItem: HTMLElement,
-  targetCoinList: HTMLElement
+  targetCoinList: HTMLElement,
 ) {
   // Add the coin to the cache's coin list
   const coinItem = document.createElement("li");
@@ -271,7 +271,7 @@ function movePlayer(direction: "up" | "down" | "left" | "right") {
   }
   map.UI.setView(
     [state.currentLocation.lat, state.currentLocation.lng],
-    GAMEPLAY_ZOOM_LEVEL
+    GAMEPLAY_ZOOM_LEVEL,
   );
   dispatchCacheGeneration(state.currentLocation);
 }
@@ -343,7 +343,7 @@ function DisplayGeocaches(cacheLocations: location[]) {
 function createCollectButton(
   coin: Coin,
   coinList: HTMLElement,
-  coinItem: HTMLElement
+  coinItem: HTMLElement,
 ) {
   const collectButton = document.createElement("button");
   collectButton.textContent = "Collect";
@@ -412,7 +412,7 @@ document.addEventListener("startTracking", () => {
     {
       enableHighAccuracy: true,
       maximumAge: 0,
-    }
+    },
   );
 });
 
@@ -467,7 +467,7 @@ document.addEventListener("resetState", () => {
 
     map.UI.setView(
       [OAKES_CLASSROOM.lat, OAKES_CLASSROOM.lng],
-      GAMEPLAY_ZOOM_LEVEL
+      GAMEPLAY_ZOOM_LEVEL,
     );
     state.inventory.length = 0;
     inventoryList.innerHTML = "";
@@ -482,6 +482,6 @@ document.addEventListener("resetState", () => {
 loadGameState(state);
 map.UI.setView(
   [state.currentLocation.lat, state.currentLocation.lng],
-  GAMEPLAY_ZOOM_LEVEL
+  GAMEPLAY_ZOOM_LEVEL,
 );
 dispatchCacheGeneration(state.currentLocation);
